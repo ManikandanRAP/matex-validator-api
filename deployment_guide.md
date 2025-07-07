@@ -1,108 +1,166 @@
-# MatEx RAP Validator API - Demo Deployment Guide
+# Production Deployment Guide: MatEx RAP Validator API
 
-This guide provides step-by-step instructions to deploy the FastAPI application to a Linux server (e.g., Ubuntu) for a demonstration. Follow these steps after connecting to your server via SSH.
-
----
-
-### **Step 1: Update System and Install Prerequisites**
-
-First, update your server's package list and install Python, `pip`, and the necessary tools.
-
-```bash
-# Update package lists and upgrade existing packages
-sudo apt update
-sudo apt upgrade -y
-
-# Install Python 3, pip, venv, and git
-sudo apt install python3 python3-pip python3-venv git -y
-```
-
-### **Step 2: Clone Your Project**
-
-Next, download the application code from your Git repository.
-
-```bash
-# Clone your repository (replace with your actual repo URL)
-git clone https://your-git-repository-url.com/matex-validator.git
-
-# Navigate into your project directory
-cd matex-validator
-```
-
-*Note: If your repository is private, you may need to configure SSH keys for authentication.*
-
-### **Step 3: Create and Configure the Environment File**
-
-Create a `.env` file to securely store your API token.
-
-```bash
-# Create and open the .env file using the nano editor
-nano .env
-```
-
-Add the following line to the file, then press `Ctrl+X`, `Y`, and `Enter` to save and exit.
-
-```
-API_TOKEN=secret-token-for-dev
-```
-
-### **Step 4: Set Up the Python Virtual Environment**
-
-Use a virtual environment to isolate the application's dependencies.
-
-```bash
-# Create a virtual environment named 'venv'
-python3 -m venv venv
-
-# Activate the virtual environment
-source venv/bin/activate
-```
-
-Your terminal prompt should now be prefixed with `(venv)`.
-
-### **Step 5: Install Dependencies**
-
-Install the required Python packages from your `requirements.txt` file.
-
-```bash
-# Install dependencies using pip
-pip install -r requirements.txt
-```
-
-### **Step 6: Configure the Firewall**
-
-Allow incoming traffic on the port your application will use (default is 8000).
-
-```bash
-# Allow traffic on port 8000
-sudo ufw allow 8000
-
-# Enable the firewall if it's not already active
-sudo ufw enable
-```
-
-### **Step 7: Run the Application**
-
-Start the Uvicorn server, making it accessible from the internet.
-
-```bash
-# Run the Uvicorn server
-# The host 0.0.0.0 makes it publicly accessible
-uvicorn app.main:app --host 0.0.0.0 --port 8000
-```
+This guide provides step-by-step instructions to deploy the FastAPI application to a production environment on a Linux server (Ubuntu). This setup uses **Gunicorn** to manage the application, **Systemd** to run it as a background service, and **Nginx** as a secure reverse proxy.
 
 ---
 
-### **Accessing Your API**
+### **Prerequisites**
 
-Your API is now live! You can access it from Postman or any other client using your server's public IP address:
+- A Linux server (Ubuntu 20.04 or newer).
+- A domain name pointing to your server's public IP address (required for HTTPS).
+- You have connected to your server via SSH.
 
-`http://<YOUR_SERVER_IP>:8000/matex/completed-check`
+--- 
 
-### **For Production Use (Post-Demo)**
+### **Step 1: Initial Server Setup**
 
-This setup is for demonstration purposes. For a production environment, you should use a more robust stack:
+First, update your server's packages and install the necessary tools.
 
-1.  **Gunicorn**: A production-grade process manager to run Uvicorn workers.
-2.  **Systemd**: A service manager to run Gunicorn in the background and ensure it starts on boot.
-3.  **Nginx**: A reverse proxy to manage incoming requests, handle HTTPS/SSL, and improve security.
+```bash
+# Update package lists and upgrade
+sudo apt update && sudo apt upgrade -y
+
+# Install Python, Pip, Venv, Nginx, and Git
+sudo apt install python3-pip python3-dev python3-venv nginx git -y
+```
+
+### **Step 2: Clone Project and Set Up Environment**
+
+1.  **Clone the Repository**
+    ```bash
+    git clone https://github.com/ManikandanRAP/matex-validator-api.git
+    cd matex-validator-api
+    ```
+
+2.  **Create a Virtual Environment**
+    ```bash
+    python3 -m venv venv
+    source venv/bin/activate
+    ```
+
+3.  **Install Dependencies**
+    Install Gunicorn alongside your other application dependencies.
+    ```bash
+    pip install -r requirements.txt gunicorn
+    ```
+
+4.  **Create `.env` file**
+    Store your production secrets here. **Do not commit this file to Git.**
+    ```bash
+    nano .env
+    ```
+    Add your production token:
+    ```
+    API_TOKEN=your_super_secret_production_token
+    ```
+    Press `Ctrl+X`, `Y`, and `Enter` to save.
+
+### **Step 3: Create a Systemd Service File**
+
+Systemd will manage the Gunicorn process, ensuring it runs in the background and restarts on failure or server reboot.
+
+1.  **Create a service file:**
+    ```bash
+    sudo nano /etc/systemd/system/matex-api.service
+    ```
+
+2.  **Paste the following configuration.** Make sure to replace `your_user` with your actual username (e.g., `ubuntu`).
+    ```ini
+    [Unit]
+    Description=Gunicorn instance to serve MatEx RAP Validator API
+    After=network.target
+
+    [Service]
+    User=your_user
+    Group=www-data
+    WorkingDirectory=/home/your_user/matex-validator-api
+    Environment="PATH=/home/your_user/matex-validator-api/venv/bin"
+    ExecStart=/home/your_user/matex-validator-api/venv/bin/gunicorn --workers 3 --worker-class uvicorn.workers.UvicornWorker -b 127.0.0.1:8000 app.main:app
+
+    [Install]
+    WantedBy=multi-user.target
+    ```
+
+3.  **Start and Enable the Service:**
+    ```bash
+    # Start the service
+    sudo systemctl start matex-api
+
+    # Enable it to start on boot
+    sudo systemctl enable matex-api
+
+    # Check the status to ensure it's running without errors
+    sudo systemctl status matex-api
+    ```
+
+### **Step 4: Configure Nginx as a Reverse Proxy**
+
+Nginx will listen for public traffic and forward it to your Gunicorn service.
+
+1.  **Create an Nginx configuration file:**
+    ```bash
+    sudo nano /etc/nginx/sites-available/matex-api
+    ```
+
+2.  **Paste the following server block.** Replace `your_domain.com` with your actual domain name.
+    ```nginx
+    server {
+        listen 80;
+        server_name your_domain.com;
+
+        location / {
+            proxy_pass http://127.0.0.1:8000;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+    ```
+
+3.  **Enable the configuration by creating a symbolic link:**
+    ```bash
+    sudo ln -s /etc/nginx/sites-available/matex-api /etc/nginx/sites-enabled
+    ```
+
+4.  **Test and Restart Nginx:**
+    ```bash
+    # Test for syntax errors
+    sudo nginx -t
+
+    # Restart Nginx to apply changes
+    sudo systemctl restart nginx
+    ```
+
+### **Step 5: Adjust Firewall and Finalize**
+
+1.  **Allow Nginx traffic:**
+    ```bash
+    sudo ufw allow 'Nginx Full'
+    sudo ufw delete allow 8000 # No longer need to expose port 8000
+    ```
+
+Your API should now be live and accessible via `http://your_domain.com`.
+
+### **Step 6: (Recommended) Secure with HTTPS using Let's Encrypt**
+
+1.  **Install Certbot:**
+    ```bash
+    sudo apt install certbot python3-certbot-nginx -y
+    ```
+
+2.  **Obtain and Install SSL Certificate:**
+    Certbot will automatically edit your Nginx configuration to set up HTTPS.
+    ```bash
+    sudo certbot --nginx -d your_domain.com
+    ```
+    Follow the on-screen prompts. It will ask if you want to redirect HTTP traffic to HTTPS (recommended).
+
+3.  **Verify Auto-Renewal:**
+    Certbot automatically sets up a cron job for renewal. You can test it:
+    ```bash
+    sudo certbot renew --dry-run
+    ```
+
+Your API is now fully deployed and securely accessible at `https://your_domain.com`.
+
