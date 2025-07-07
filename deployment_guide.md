@@ -102,11 +102,11 @@ Nginx will listen for public traffic and forward it to your Gunicorn service.
     sudo nano /etc/nginx/sites-available/matex-api
     ```
 
-2.  **Paste the following server block.** Replace `your_domain.com` with your actual domain name.
+2.  **Paste the following server block.** The `server_name` is set to your server's public IP address.
     ```nginx
     server {
         listen 80;
-        server_name your_domain.com;
+        server_name 182.73.35.202;
 
         location / {
             proxy_pass http://127.0.0.1:8000;
@@ -140,27 +140,10 @@ Nginx will listen for public traffic and forward it to your Gunicorn service.
     sudo ufw delete allow 8000 # No longer need to expose port 8000
     ```
 
-Your API should now be live and accessible via `http://your_domain.com`.
+Your API is now live and accessible via your public IP address: `http://182.73.35.202`.
 
-### **Step 6: (Recommended) Secure with HTTPS using Let's Encrypt**
+### **A Note on Security (HTTPS)**
 
-1.  **Install Certbot:**
-    ```bash
-    sudo apt install certbot python3-certbot-nginx -y
-    ```
+This guide sets up your API with standard HTTP, which is unencrypted. For a true production environment that handles real client data, **using HTTPS is essential for security.**
 
-2.  **Obtain and Install SSL Certificate:**
-    Certbot will automatically edit your Nginx configuration to set up HTTPS.
-    ```bash
-    sudo certbot --nginx -d your_domain.com
-    ```
-    Follow the on-screen prompts. It will ask if you want to redirect HTTP traffic to HTTPS (recommended).
-
-3.  **Verify Auto-Renewal:**
-    Certbot automatically sets up a cron job for renewal. You can test it:
-    ```bash
-    sudo certbot renew --dry-run
-    ```
-
-Your API is now fully deployed and securely accessible at `https://your_domain.com`.
-
+To enable HTTPS, you need a domain name. Services like Let's Encrypt provide free SSL certificates but require a domain to validate ownership. Using an IP address directly is suitable for testing and development, but we strongly recommend acquiring a domain name before going live with client traffic.
