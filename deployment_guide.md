@@ -49,9 +49,11 @@ sudo apt install python3-pip python3-dev python3-venv nginx git -y
     ```bash
     nano .env
     ```
-    Add your production token:
+    Add your production token. For a real deployment, you should generate a cryptographically secure token.
+    (On Linux, a command like `openssl rand -hex 32` is a good way to generate one).
     ```
-    API_TOKEN=your_super_secret_production_token
+    # Replace with your actual generated token
+    API_TOKEN=prod_api_token_9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
     ```
     Press `Ctrl+X`, `Y`, and `Enter` to save.
 
@@ -102,11 +104,11 @@ Nginx will listen for public traffic and forward it to your Gunicorn service.
     sudo nano /etc/nginx/sites-available/matex-api
     ```
 
-2.  **Paste the following server block.** The `server_name` is set to your server's public IP address.
+2.  **Paste the following server block.** The `server_name` is set to your server's private IP address, accessible via VPN.
     ```nginx
     server {
         listen 80;
-        server_name 182.73.35.202;
+        server_name 192.168.15.69;
 
         location / {
             proxy_pass http://127.0.0.1:8000;
@@ -140,10 +142,10 @@ Nginx will listen for public traffic and forward it to your Gunicorn service.
     sudo ufw delete allow 8000 # No longer need to expose port 8000
     ```
 
-Your API is now live and accessible via your public IP address: `http://182.73.35.202`.
+Your API is now live and accessible via your private IP address when connected to the VPN: `http://192.168.15.69`.
 
-### **A Note on Security (HTTPS)**
+### **A Note on Network Access**
 
-This guide sets up your API with standard HTTP, which is unencrypted. For a true production environment that handles real client data, **using HTTPS is essential for security.**
+This setup is configured to be accessible from within your company's network when connected via VPN. It is not exposed to the public internet.
 
-To enable HTTPS, you need a domain name. Services like Let's Encrypt provide free SSL certificates but require a domain to validate ownership. Using an IP address directly is suitable for testing and development, but we strongly recommend acquiring a domain name before going live with client traffic.
+For a true production environment that handles external client data, you would typically use a public domain name with HTTPS enabled, and your network team would configure the necessary firewall rules to allow external traffic to reach the server securely.
